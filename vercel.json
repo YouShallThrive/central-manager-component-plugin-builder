@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/wp-updates/:path*",
+      "destination": "https://befitting-bison-847.convex.site/wp-updates/:path*"
+    },
+    {
+      "source": "/wp-updates-dev/:path*",
+      "destination": "https://agile-guineapig-360.convex.site/wp-updates/:path*"
+    },
+    {
       "source": "/((?!assets/).*)",
       "destination": "/index.html"
     }
