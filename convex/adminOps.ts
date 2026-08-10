@@ -1,14 +1,19 @@
-import { internalAction, internalMutation } from "./_generated/server";
+import { action, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 
+declare const process: { env: Record<string, string | undefined> };
+
 /**
- * Internal ops for Viktor (agent) maintenance of the plugin repository.
- * Run via `bunx convex run adminOps:uploadPluginZip '<json>'` — not exposed to clients.
+ * Admin ops for Viktor (agent) maintenance of the plugin repository.
+ * uploadPluginZip is a public action guarded by the platform-managed
+ * VIKTOR_SPACES_PROJECT_SECRET (only Viktor's sandbox knows it), so it
+ * can be invoked on BOTH dev and prod deployments.
  */
 
-export const uploadPluginZip = internalAction({
+export const uploadPluginZip = action({
   args: {
+    projectSecret: v.string(),
     slug: v.string(),
     base64: v.string(),
     version: v.string(),
@@ -16,6 +21,12 @@ export const uploadPluginZip = internalAction({
     readme: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    if (
+      !process.env.VIKTOR_SPACES_PROJECT_SECRET ||
+      args.projectSecret !== process.env.VIKTOR_SPACES_PROJECT_SECRET
+    ) {
+      throw new Error("Unauthorized");
+    }
     const bytes = Uint8Array.from(atob(args.base64), (c) => c.charCodeAt(0));
     const blob = new Blob([bytes], { type: "application/zip" });
     const storageId = await ctx.storage.store(blob);
