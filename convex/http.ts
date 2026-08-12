@@ -46,7 +46,8 @@ http.route({
     }
 
     // Manifest consumed by the plugin's Updater class.
-    const packageUrl = `${url.origin}/wp-updates/${slug}.zip`;
+    // ?v= busts the edge/CDN cache (Cloudflare caches zips ~4h and ignores no-cache)
+    const packageUrl = `${url.origin}/wp-updates/${slug}.zip?v=${encodeURIComponent(plugin.version)}`;
     const manifest = {
       slug,
       name: plugin.name,

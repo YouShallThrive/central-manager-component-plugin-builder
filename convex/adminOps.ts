@@ -94,3 +94,36 @@ export const readPluginMeta = internalMutation({
     return { version, fileSize, fileStorageId, updatedAt, changelogHead: (changelog ?? "").slice(0, 140) };
   },
 });
+
+export const setChangelog = action({
+  args: {
+    projectSecret: v.string(),
+    slug: v.string(),
+    changelog: v.string(),
+  },
+  handler: async (ctx, args) => {
+    if (
+      !process.env.VIKTOR_SPACES_PROJECT_SECRET ||
+      args.projectSecret !== process.env.VIKTOR_SPACES_PROJECT_SECRET
+    ) {
+      throw new Error("Unauthorized");
+    }
+    await ctx.runMutation(internal.adminOps.writeChangelog, {
+      slug: args.slug,
+      changelog: args.changelog,
+    });
+    return "ok";
+  },
+});
+
+export const writeChangelog = internalMutation({
+  args: { slug: v.string(), changelog: v.string() },
+  handler: async (ctx, args) => {
+    const plugin = await ctx.db
+      .query("customPlugins")
+      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
+      .unique();
+    if (!plugin) throw new Error(`Plugin not found: ${args.slug}`);
+    await ctx.db.patch(plugin._id, { changelog: args.changelog, updatedAt: Date.now() });
+  },
+});
