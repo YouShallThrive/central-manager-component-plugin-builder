@@ -5,9 +5,9 @@ import { internal } from "./_generated/api";
 declare const process: { env: Record<string, string | undefined> };
 
 /**
- * Admin ops for Viktor (agent) maintenance of the plugin repository.
- * uploadPluginZip is a public action guarded by the platform-managed
- * VIKTOR_SPACES_PROJECT_SECRET (only Viktor's sandbox knows it), so it
+ * Admin ops for agent maintenance of the plugin repository.
+ * uploadPluginZip is a public action guarded by the deployment-managed
+ * ADMIN_PROJECT_SECRET (only the deploy environment knows it), so it
  * can be invoked on BOTH dev and prod deployments.
  */
 
@@ -22,8 +22,8 @@ export const uploadPluginZip = action({
   },
   handler: async (ctx, args) => {
     if (
-      !process.env.VIKTOR_SPACES_PROJECT_SECRET ||
-      args.projectSecret !== process.env.VIKTOR_SPACES_PROJECT_SECRET
+      !process.env.ADMIN_PROJECT_SECRET ||
+      args.projectSecret !== process.env.ADMIN_PROJECT_SECRET
     ) {
       throw new Error("Unauthorized");
     }
@@ -73,8 +73,8 @@ export const getPluginMeta = action({
   args: { projectSecret: v.string(), slug: v.string() },
   handler: async (ctx, args): Promise<unknown> => {
     if (
-      !process.env.VIKTOR_SPACES_PROJECT_SECRET ||
-      args.projectSecret !== process.env.VIKTOR_SPACES_PROJECT_SECRET
+      !process.env.ADMIN_PROJECT_SECRET ||
+      args.projectSecret !== process.env.ADMIN_PROJECT_SECRET
     ) {
       throw new Error("Unauthorized");
     }
@@ -103,8 +103,8 @@ export const setChangelog = action({
   },
   handler: async (ctx, args) => {
     if (
-      !process.env.VIKTOR_SPACES_PROJECT_SECRET ||
-      args.projectSecret !== process.env.VIKTOR_SPACES_PROJECT_SECRET
+      !process.env.ADMIN_PROJECT_SECRET ||
+      args.projectSecret !== process.env.ADMIN_PROJECT_SECRET
     ) {
       throw new Error("Unauthorized");
     }
