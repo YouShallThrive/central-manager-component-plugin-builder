@@ -12,9 +12,9 @@ auth.addHttpRoutes(http);
  * GET /wp-updates/{slug}.json  → update manifest for the plugin
  * GET /wp-updates/{slug}.zip   → the plugin package
  *
- * Sites reach these through the space domain rewrite:
- *   https://plugin-builder-adc9e0d0.viktor.space/wp-updates/...          (production)
- *   https://preview-plugin-builder-adc9e0d0.viktor.space/wp-updates-dev/... (preview → dev DB)
+ * Sites reach these through the deployment origin (env-driven CONVEX_SITE_URL):
+ *   {origin}/wp-updates/...           (production)
+ *   {preview origin}/wp-updates-dev/... (preview → dev DB)
  */
 
 const SLUG_RE = /^\/wp-updates\/([a-z0-9-]+)\.(json|zip)$/;
