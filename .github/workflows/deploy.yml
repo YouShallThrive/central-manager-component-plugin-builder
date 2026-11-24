@@ -36,5 +36,8 @@ jobs:
       - name: Backfill plugin versions
         run: ./node_modules/.bin/convex run migrations:backfillVersions
 
+      - name: Publish bundled plugins to the repository
+        run: node scripts/publish-plugins.mjs
+
       - name: Rebuild frontend image and roll the stack
         run: python3 .github/scripts/deploy_env.py "$DEPLOY_ENV"

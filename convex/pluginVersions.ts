@@ -1,7 +1,13 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
-import { v } from "convex/values";
+import { type ObjectType, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { type MutationCtx, mutation, query } from "./_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  type MutationCtx,
+  mutation,
+  query,
+} from "./_generated/server";
 
 /*validation*/
 
@@ -61,100 +67,134 @@ export const listByPlugin = query({
 
 /*mutations*/
 
+const registerArgs = {
+  storageId: v.id("_storage"),
+  slug: v.string(),
+  version: v.string(),
+  changelog: v.optional(v.string()),
+  makeCurrent: v.boolean(),
+  name: v.optional(v.string()),
+  description: v.optional(v.string()),
+  author: v.optional(v.string()),
+  category: v.optional(categoryValidator),
+  tags: v.optional(v.array(v.string())),
+  readme: v.optional(v.string()),
+  requires: v.optional(v.string()),
+  tested: v.optional(v.string()),
+  requiresPhp: v.optional(v.string()),
+  };
+
+export async function registerVersion(
+  ctx: MutationCtx,
+  args: ObjectType<typeof registerArgs>,
+  uploadedBy: string,
+) {
+  if (!SLUG_RE.test(args.slug)) throw new Error("Invalid plugin slug");
+  if (!VERSION_RE.test(args.version)) throw new Error("Invalid version");
+
+  const { size, sha256 } = await storageMeta(ctx, args.storageId);
+  const now = Date.now();
+
+  let plugin = await ctx.db
+    .query("customPlugins")
+    .withIndex("by_slug", (q) => q.eq("slug", args.slug))
+    .first();
+
+  if (!plugin) {
+    if (!args.name || !args.description || !args.author || !args.category) {
+      throw new Error("Name, description, author and category are required for a new plugin");
+    }
+    const pluginId = await ctx.db.insert("customPlugins", {
+      slug: args.slug,
+      name: args.name,
+      description: args.description,
+      author: args.author,
+      category: args.category,
+      version: args.version,
+      readme: args.readme,
+      tags: args.tags,
+      fileStorageId: args.storageId,
+      fileSize: size,
+      downloadCount: 0,
+      isStarter: args.category === "starter",
+      createdBy: uploadedBy,
+      createdAt: now,
+      updatedAt: now,
+    });
+    plugin = (await ctx.db.get(pluginId))!;
+  }
+
+  const existing = await ctx.db
+    .query("pluginVersions")
+    .withIndex("by_plugin_and_version", (q) =>
+      q.eq("pluginId", plugin!._id).eq("version", args.version),
+    )
+    .first();
+  if (existing) throw new Error(`Version ${args.version} already exists`);
+
+  const versionId = await ctx.db.insert("pluginVersions", {
+    pluginId: plugin._id,
+    version: args.version,
+    fileStorageId: args.storageId,
+    fileSize: size,
+    sha256,
+    changelog: args.changelog?.trim() || undefined,
+    requires: args.requires,
+    tested: args.tested,
+    requiresPhp: args.requiresPhp,
+    uploadedBy,
+    createdAt: now,
+  });
+
+  const isFirst = !plugin.activeVersionId;
+  if (args.makeCurrent || isFirst) {
+    const version = (await ctx.db.get(versionId))!;
+    await activateVersion(ctx, plugin, version);
+  }
+
+  const metaPatch: Partial<Doc<"customPlugins">> = {};
+  if (args.name && plugin.name !== args.name) metaPatch.name = args.name;
+  if (args.description && plugin.description !== args.description) {
+    metaPatch.description = args.description;
+  }
+  if (args.readme) metaPatch.readme = args.readme;
+  if (Object.keys(metaPatch).length > 0 && (args.makeCurrent || isFirst)) {
+    await ctx.db.patch(plugin._id, metaPatch);
+  }
+
+  return { pluginId: plugin._id, versionId };
+}
+
 export const register = mutation({
-  args: {
-    storageId: v.id("_storage"),
-    slug: v.string(),
-    version: v.string(),
-    changelog: v.optional(v.string()),
-    makeCurrent: v.boolean(),
-    name: v.optional(v.string()),
-    description: v.optional(v.string()),
-    author: v.optional(v.string()),
-    category: v.optional(categoryValidator),
-    tags: v.optional(v.array(v.string())),
-    readme: v.optional(v.string()),
-    requires: v.optional(v.string()),
-    tested: v.optional(v.string()),
-    requiresPhp: v.optional(v.string()),
-  },
+  args: registerArgs,
   handler: async (ctx, args) => {
     const uploadedBy = await requireUserEmail(ctx);
+    return await registerVersion(ctx, args, uploadedBy);
+  },
+});
 
-    if (!SLUG_RE.test(args.slug)) throw new Error("Invalid plugin slug");
-    if (!VERSION_RE.test(args.version)) throw new Error("Invalid version");
+export const registerInternal = internalMutation({
+  args: registerArgs,
+  handler: async (ctx, args) => {
+    return await registerVersion(ctx, args, "deploy");
+  },
+});
 
-    const { size, sha256 } = await storageMeta(ctx, args.storageId);
-    const now = Date.now();
-
-    let plugin = await ctx.db
+export const hasVersion = internalQuery({
+  args: { slug: v.string(), version: v.string() },
+  handler: async (ctx, args) => {
+    const plugin = await ctx.db
       .query("customPlugins")
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .first();
-
-    if (!plugin) {
-      if (!args.name || !args.description || !args.author || !args.category) {
-        throw new Error("Name, description, author and category are required for a new plugin");
-      }
-      const pluginId = await ctx.db.insert("customPlugins", {
-        slug: args.slug,
-        name: args.name,
-        description: args.description,
-        author: args.author,
-        category: args.category,
-        version: args.version,
-        readme: args.readme,
-        tags: args.tags,
-        fileStorageId: args.storageId,
-        fileSize: size,
-        downloadCount: 0,
-        isStarter: args.category === "starter",
-        createdBy: uploadedBy,
-        createdAt: now,
-        updatedAt: now,
-      });
-      plugin = (await ctx.db.get(pluginId))!;
-    }
-
+    if (!plugin) return false;
     const existing = await ctx.db
       .query("pluginVersions")
       .withIndex("by_plugin_and_version", (q) =>
-        q.eq("pluginId", plugin!._id).eq("version", args.version),
+        q.eq("pluginId", plugin._id).eq("version", args.version),
       )
       .first();
-    if (existing) throw new Error(`Version ${args.version} already exists`);
-
-    const versionId = await ctx.db.insert("pluginVersions", {
-      pluginId: plugin._id,
-      version: args.version,
-      fileStorageId: args.storageId,
-      fileSize: size,
-      sha256,
-      changelog: args.changelog?.trim() || undefined,
-      requires: args.requires,
-      tested: args.tested,
-      requiresPhp: args.requiresPhp,
-      uploadedBy,
-      createdAt: now,
-    });
-
-    const isFirst = !plugin.activeVersionId;
-    if (args.makeCurrent || isFirst) {
-      const version = (await ctx.db.get(versionId))!;
-      await activateVersion(ctx, plugin, version);
-    }
-
-    const metaPatch: Partial<Doc<"customPlugins">> = {};
-    if (args.name && plugin.name !== args.name) metaPatch.name = args.name;
-    if (args.description && plugin.description !== args.description) {
-      metaPatch.description = args.description;
-    }
-    if (args.readme) metaPatch.readme = args.readme;
-    if (Object.keys(metaPatch).length > 0 && (args.makeCurrent || isFirst)) {
-      await ctx.db.patch(plugin._id, metaPatch);
-    }
-
-    return { pluginId: plugin._id, versionId };
+    return existing !== null;
   },
 });
 

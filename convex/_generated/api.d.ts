@@ -17,6 +17,7 @@ import type * as constants from "../constants.js";
 import type * as customPlugins from "../customPlugins.js";
 import type * as http from "../http.js";
 import type * as migrations from "../migrations.js";
+import type * as pluginPublish from "../pluginPublish.js";
 import type * as pluginUpload from "../pluginUpload.js";
 import type * as pluginVersions from "../pluginVersions.js";
 import type * as seedTestUser from "../seedTestUser.js";
@@ -26,6 +27,7 @@ import type * as ssoAuth from "../ssoAuth.js";
 import type * as testAuth from "../testAuth.js";
 import type * as users from "../users.js";
 import type * as wpUpdates from "../wpUpdates.js";
+import type * as zipHeader from "../zipHeader.js";
 
 import type {
   ApiFromModules,
@@ -43,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   customPlugins: typeof customPlugins;
   http: typeof http;
   migrations: typeof migrations;
+  pluginPublish: typeof pluginPublish;
   pluginUpload: typeof pluginUpload;
   pluginVersions: typeof pluginVersions;
   seedTestUser: typeof seedTestUser;
@@ -52,6 +55,7 @@ declare const fullApi: ApiFromModules<{
   testAuth: typeof testAuth;
   users: typeof users;
   wpUpdates: typeof wpUpdates;
+  zipHeader: typeof zipHeader;
 }>;
 
 /**

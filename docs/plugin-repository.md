@@ -40,6 +40,7 @@ nginx in `frontend/nginx.conf` proxies `/wp-updates/` to the Convex HTTP actions
 - Source: `plugins/yst-manager`. Build a zip with `node scripts/build-plugin.mjs yst-manager`.
 - The plugin's `Updater` polls `https://plugin-builder.ystvps.com/wp-updates/yst-manager.json` every 6 hours. A staging site can point at another repository with the `YST_MANAGER_UPDATE_URL` constant.
 - "Check for updates" under YST Manager on the Plugins screen refreshes the check immediately.
+- Every deploy publishes the bundled plugins (`scripts/publish-plugins.mjs`). A push to `staging` puts the version in the plugin header into the staging repository, and a push to `main` puts it into production. The new version becomes the current one. A version that already exists is skipped and never overwritten, so bump the version in `plugins/yst-manager/yst-manager.php` and add its README changelog section to release a change.
 
 ## Later
 
