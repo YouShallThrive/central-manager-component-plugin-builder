@@ -22,20 +22,13 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { readPluginHeader, type PluginHeader } from "@/lib/zip-header";
 import { api } from "../../../convex/_generated/api";
 import type { Doc, Id } from "../../../convex/_generated/dataModel";
 
 type Category = "starter" | "utility" | "integration" | "custom";
 
-type Inspected = {
-  folder: string;
-  name: string;
-  version?: string;
-  description?: string;
-  author?: string;
-  requires?: string;
-  requiresPhp?: string;
-};
+type Inspected = PluginHeader;
 
 type Props = {
   open: boolean;
@@ -63,7 +56,7 @@ export function UploadPluginDialog({
   targetPlugin,
 }: Props) {
   const generateUploadUrl = useMutation(api.customPlugins.generateUploadUrl);
-  const inspectZip = useAction(api.pluginUpload.inspectZip);
+  const verifyUpload = useAction(api.pluginUpload.verifyUpload);
   const register = useMutation(api.pluginVersions.register);
   const discardUpload = useMutation(api.pluginVersions.discardUpload);
 
@@ -138,6 +131,7 @@ export function UploadPluginDialog({
       setBusy("upload");
       let uploaded: Id<"_storage"> | null = null;
       try {
+        const info = await readPluginHeader(file);
         const url = await generateUploadUrl();
         const res = await fetch(url, {
           method: "POST",
@@ -148,7 +142,7 @@ export function UploadPluginDialog({
         const json = (await res.json()) as { storageId: Id<"_storage"> };
         uploaded = json.storageId;
 
-        const info = await inspectZip({ storageId: uploaded });
+        await verifyUpload({ storageId: uploaded, slug: info.folder });
         const match = plugins.find(plugin => plugin.slug === info.folder);
         setStorageId(uploaded);
         setFileName(file.name);
@@ -176,7 +170,7 @@ export function UploadPluginDialog({
         setBusy(null);
       }
     },
-    [generateUploadUrl, inspectZip, discardUpload, plugins],
+    [generateUploadUrl, verifyUpload, discardUpload, plugins],
   );
 
   const handleSave = useCallback(async () => {

@@ -1,17 +1,11 @@
-"use node";
-
 import { v } from "convex/values";
 import { action } from "./_generated/server";
-import { inflateRawSync } from "node:zlib";
-import { inspectZipBuffer, MAX_ZIP_BYTES } from "./zipHeader";
-
-const inflate = (data: Buffer, maxOutputLength: number) =>
-  inflateRawSync(data, { maxOutputLength });
+import { listZipNames, MAX_ZIP_BYTES } from "./zipHeader";
 
 /*actions*/
 
-export const inspectZip = action({
-  args: { storageId: v.id("_storage") },
+export const verifyUpload = action({
+  args: { storageId: v.id("_storage"), slug: v.string() },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
@@ -20,6 +14,14 @@ export const inspectZip = action({
     if (!blob) throw new Error("Uploaded file not found");
     if (blob.size > MAX_ZIP_BYTES) throw new Error("The zip is larger than 100 MB");
 
-    return inspectZipBuffer(Buffer.from(await blob.arrayBuffer()), inflate);
+    const names = await listZipNames(blob);
+    const main = `${args.slug}/${args.slug}.php`;
+    if (!names.includes(main)) {
+      throw new Error(`The zip must contain ${main}`);
+    }
+    if (names.some((name) => !name.startsWith(`${args.slug}/`))) {
+      throw new Error(`Every file in the zip must be inside the ${args.slug} folder`);
+    }
+    return { fileCount: names.length };
   },
 });

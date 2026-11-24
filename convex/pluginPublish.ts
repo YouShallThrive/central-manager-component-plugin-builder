@@ -1,19 +1,20 @@
-"use node";
-
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
-import { inflateRawSync } from "node:zlib";
-import { inspectZipBuffer, MAX_ZIP_BYTES } from "./zipHeader";
-
-const inflate = (data: Buffer, maxOutputLength: number) =>
-  inflateRawSync(data, { maxOutputLength });
+import { MAX_ZIP_BYTES } from "./zipHeader";
 
 /*deploy publish*/
 
 export const publishFromDeploy = internalAction({
   args: {
     base64: v.string(),
+    slug: v.string(),
+    version: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+    author: v.optional(v.string()),
+    requires: v.optional(v.string()),
+    requiresPhp: v.optional(v.string()),
     changelog: v.optional(v.string()),
     category: v.union(
       v.literal("starter"),
@@ -23,38 +24,36 @@ export const publishFromDeploy = internalAction({
     ),
   },
   handler: async (ctx, args): Promise<string> => {
-    const buf = Buffer.from(args.base64, "base64");
-    if (buf.length > MAX_ZIP_BYTES) throw new Error("The zip is larger than 100 MB");
-    const info = inspectZipBuffer(buf, inflate);
-    if (!info.version) throw new Error("The plugin header has no Version");
-
     const exists = await ctx.runQuery(internal.pluginVersions.hasVersion, {
-      slug: info.folder,
-      version: info.version,
+      slug: args.slug,
+      version: args.version,
     });
-    if (exists) return `${info.folder} ${info.version} already published`;
+    if (exists) return `${args.slug} ${args.version} already published`;
+
+    const bytes = Uint8Array.from(atob(args.base64), (c) => c.charCodeAt(0));
+    if (bytes.length > MAX_ZIP_BYTES) throw new Error("The zip is larger than 100 MB");
 
     const storageId = await ctx.storage.store(
-      new Blob([buf], { type: "application/zip" }),
+      new Blob([bytes], { type: "application/zip" }),
     );
     try {
       await ctx.runMutation(internal.pluginVersions.registerInternal, {
         storageId,
-        slug: info.folder,
-        version: info.version,
+        slug: args.slug,
+        version: args.version,
         changelog: args.changelog,
         makeCurrent: true,
-        name: info.name,
-        description: info.description,
-        author: info.author,
+        name: args.name,
+        description: args.description,
+        author: args.author,
         category: args.category,
-        requires: info.requires,
-        requiresPhp: info.requiresPhp,
+        requires: args.requires,
+        requiresPhp: args.requiresPhp,
       });
     } catch (err) {
       await ctx.storage.delete(storageId);
       throw err;
     }
-    return `${info.folder} ${info.version} published as current`;
+    return `${args.slug} ${args.version} published as current`;
   },
 });
