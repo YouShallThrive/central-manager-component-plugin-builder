@@ -2,7 +2,11 @@
 
 import { v } from "convex/values";
 import { action } from "./_generated/server";
+import { inflateRawSync } from "node:zlib";
 import { inspectZipBuffer, MAX_ZIP_BYTES } from "./zipHeader";
+
+const inflate = (data: Buffer, maxOutputLength: number) =>
+  inflateRawSync(data, { maxOutputLength });
 
 /*actions*/
 
@@ -16,6 +20,6 @@ export const inspectZip = action({
     if (!blob) throw new Error("Uploaded file not found");
     if (blob.size > MAX_ZIP_BYTES) throw new Error("The zip is larger than 100 MB");
 
-    return inspectZipBuffer(Buffer.from(await blob.arrayBuffer()));
+    return inspectZipBuffer(Buffer.from(await blob.arrayBuffer()), inflate);
   },
 });

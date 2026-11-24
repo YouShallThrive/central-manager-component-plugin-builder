@@ -1,4 +1,3 @@
-import { inflateRawSync } from "node:zlib";
 
 /*limits*/
 
@@ -51,7 +50,9 @@ function readEntries(buf: Buffer): ZipEntry[] {
   return entries;
 }
 
-function readEntry(buf: Buffer, entry: ZipEntry): string {
+export type Inflate = (data: Buffer, maxOutputLength: number) => Buffer;
+
+function readEntry(buf: Buffer, entry: ZipEntry, inflate: Inflate): string {
   if (entry.uncompressedSize > MAX_HEADER_FILE_BYTES) {
     throw new Error(`${entry.name} is too large to be a plugin file`);
   }
@@ -63,7 +64,7 @@ function readEntry(buf: Buffer, entry: ZipEntry): string {
   const data = buf.subarray(start, start + entry.compressedSize);
   if (entry.method === 0) return data.toString("utf8");
   if (entry.method === 8) {
-    return inflateRawSync(data, { maxOutputLength: MAX_HEADER_FILE_BYTES }).toString("utf8");
+    return inflate(data, MAX_HEADER_FILE_BYTES).toString("utf8");
   }
   throw new Error("Unsupported zip compression method");
 }
@@ -76,7 +77,7 @@ function headerField(source: string, label: string): string | undefined {
   return match ? match[1].replace(/\s*\*\/\s*$/, "").trim() : undefined;
 }
 
-export function inspectZipBuffer(buf: Buffer) {
+export function inspectZipBuffer(buf: Buffer, inflate: Inflate) {
   const entries = readEntries(buf);
 
   const candidates = entries
@@ -84,7 +85,7 @@ export function inspectZipBuffer(buf: Buffer) {
     .slice(0, MAX_CANDIDATES);
 
   for (const entry of candidates) {
-    const source = readEntry(buf, entry);
+    const source = readEntry(buf, entry, inflate);
     const name = headerField(source, "Plugin Name");
     if (!name) continue;
 
