@@ -1,6 +1,7 @@
 import { action, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
+import { activateVersion } from "./pluginVersions";
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -57,14 +58,42 @@ export const applyPluginUpdate = internalMutation({
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .first();
     if (!plugin) throw new Error(`Plugin not found: ${args.slug}`);
-    await ctx.db.patch(plugin._id, {
-      fileStorageId: args.storageId,
-      fileSize: args.fileSize,
-      version: args.version,
-      changelog: `${args.changelogEntry}\n\n${plugin.changelog ?? ""}`.trim(),
-      ...(args.readme ? { readme: args.readme } : {}),
-      updatedAt: Date.now(),
-    });
+
+    const existing = await ctx.db
+      .query("pluginVersions")
+      .withIndex("by_plugin_and_version", (q) =>
+        q.eq("pluginId", plugin._id).eq("version", args.version),
+      )
+      .first();
+    if (existing) {
+      if (existing.fileStorageId !== args.storageId) {
+        await ctx.storage.delete(existing.fileStorageId);
+      }
+      await ctx.db.patch(existing._id, {
+        fileStorageId: args.storageId,
+        fileSize: args.fileSize,
+        changelog: args.changelogEntry,
+      });
+    } else {
+      await ctx.db.insert("pluginVersions", {
+        pluginId: plugin._id,
+        version: args.version,
+        fileStorageId: args.storageId,
+        fileSize: args.fileSize,
+        changelog: args.changelogEntry,
+        uploadedBy: "admin-ops",
+        createdAt: Date.now(),
+      });
+    }
+
+    const version = await ctx.db
+      .query("pluginVersions")
+      .withIndex("by_plugin_and_version", (q) =>
+        q.eq("pluginId", plugin._id).eq("version", args.version),
+      )
+      .first();
+    await activateVersion(ctx, plugin, version!);
+    if (args.readme) await ctx.db.patch(plugin._id, { readme: args.readme });
     return plugin._id;
   },
 });

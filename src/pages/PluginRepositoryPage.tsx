@@ -14,8 +14,11 @@ import {
   Loader2,
   FileText,
   Calendar,
+  Upload,
 } from "lucide-react";
-import type { Id } from "../../convex/_generated/dataModel";
+import { UploadPluginDialog } from "@/components/repository/UploadPluginDialog";
+import { VersionsPanel } from "@/components/repository/VersionsPanel";
+import type { Doc, Id } from "../../convex/_generated/dataModel";
 
 const categoryConfig = {
   starter: { label: "Starter", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
@@ -113,6 +116,15 @@ export function PluginRepositoryPage() {
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [expandedPlugin, setExpandedPlugin] = useState<string | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadTarget, setUploadTarget] = useState<
+    Doc<"customPlugins"> | undefined
+  >(undefined);
+
+  const openUpload = (target?: Doc<"customPlugins">) => {
+    setUploadTarget(target);
+    setUploadOpen(true);
+  };
 
   const plugins = useQuery(api.customPlugins.list, {});
 
@@ -138,16 +150,22 @@ export function PluginRepositoryPage() {
   return (
     <div className="max-w-[1000px] mx-auto space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Plugin Repository</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Browse and download custom-built WordPress plugins
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Plugin Repository</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Upload, version and release the WordPress plugins your sites update from
+          </p>
+        </div>
+        <Button onClick={() => openUpload()}>
+          <Upload className="size-4 mr-1.5" />
+          Upload plugin
+        </Button>
       </div>
 
       {/* Search + Category Filter */}
-      <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-md">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
             placeholder="Search plugins..."
@@ -237,17 +255,24 @@ export function PluginRepositoryPage() {
             />
           </div>
 
-          {/* Expanded readme */}
-          {expandedPlugin === starterPlugin._id && starterPlugin.readme && (
-            <div className="mt-5 pt-5 border-t border-emerald-200 dark:border-emerald-800">
-              <div className="flex items-center gap-2 mb-3">
-                <FileText className="size-4 text-emerald-600" />
-                <h3 className="text-sm font-semibold">README</h3>
-              </div>
-              <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono bg-background/60 rounded-lg p-4 max-h-96 overflow-y-auto">
-                {starterPlugin.readme}
-              </pre>
-            </div>
+          {expandedPlugin === starterPlugin._id && (
+            <>
+              <VersionsPanel
+                plugin={starterPlugin}
+                onUpload={() => openUpload(starterPlugin)}
+              />
+              {starterPlugin.readme && (
+                <div className="mt-5 pt-5 border-t border-emerald-200 dark:border-emerald-800">
+                  <div className="flex items-center gap-2 mb-3">
+                    <FileText className="size-4 text-emerald-600" />
+                    <h3 className="text-sm font-semibold">README</h3>
+                  </div>
+                  <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono bg-background/60 rounded-lg p-4 max-h-96 overflow-y-auto">
+                    {starterPlugin.readme}
+                  </pre>
+                </div>
+              )}
+            </>
           )}
         </div>
       )}
@@ -266,9 +291,13 @@ export function PluginRepositoryPage() {
             <Package className="size-12 text-muted-foreground/30 mx-auto mb-3" />
             <h3 className="font-semibold text-lg mb-1">No custom plugins yet</h3>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Custom plugins will appear here as they're built. Use the Plugin
-              Builder to request new plugins from Viktor.
+              Upload a plugin zip to add the first one. Sites update from the
+              version you mark as current.
             </p>
+            <Button className="mt-4" onClick={() => openUpload()}>
+              <Upload className="size-4 mr-1.5" />
+              Upload plugin
+            </Button>
           </div>
         ) : (
           otherPlugins.map((plugin) => {
@@ -327,23 +356,37 @@ export function PluginRepositoryPage() {
                   />
                 </div>
 
-                {/* Expanded readme */}
-                {isExpanded && plugin.readme && (
-                  <div className="mt-4 pt-4 border-t">
-                    <div className="flex items-center gap-2 mb-3">
-                      <FileText className="size-4 text-muted-foreground" />
-                      <h3 className="text-sm font-semibold">README</h3>
-                    </div>
-                    <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono bg-muted/50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                      {plugin.readme}
-                    </pre>
-                  </div>
+                {isExpanded && (
+                  <>
+                    <VersionsPanel
+                      plugin={plugin}
+                      onUpload={() => openUpload(plugin)}
+                    />
+                    {plugin.readme && (
+                      <div className="mt-4 pt-4 border-t">
+                        <div className="flex items-center gap-2 mb-3">
+                          <FileText className="size-4 text-muted-foreground" />
+                          <h3 className="text-sm font-semibold">README</h3>
+                        </div>
+                        <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono bg-muted/50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                          {plugin.readme}
+                        </pre>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             );
           })
         )}
       </div>
+
+      <UploadPluginDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        plugins={plugins ?? []}
+        targetPlugin={uploadTarget}
+      />
     </div>
   );
 }

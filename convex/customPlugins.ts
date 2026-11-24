@@ -49,55 +49,6 @@ export const getStarter = query({
   },
 });
 
-/** Create or update a custom plugin */
-export const upsert = mutation({
-  args: {
-    slug: v.string(),
-    name: v.string(),
-    description: v.string(),
-    version: v.string(),
-    author: v.string(),
-    category: v.union(
-      v.literal("starter"),
-      v.literal("utility"),
-      v.literal("integration"),
-      v.literal("custom"),
-    ),
-    readme: v.optional(v.string()),
-    changelog: v.optional(v.string()),
-    fileStorageId: v.optional(v.id("_storage")),
-    fileSize: v.optional(v.number()),
-    isStarter: v.boolean(),
-    createdBy: v.optional(v.string()),
-    tags: v.optional(v.array(v.string())),
-    gitRepo: v.optional(v.string()),
-  },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("Not authenticated");
-
-    const existing = await ctx.db
-      .query("customPlugins")
-      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
-      .first();
-
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        ...args,
-        updatedAt: Date.now(),
-      });
-      return existing._id;
-    }
-
-    return await ctx.db.insert("customPlugins", {
-      ...args,
-      downloadCount: 0,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-  },
-});
-
 /** Increment download count */
 export const incrementDownloads = mutation({
   args: { id: v.id("customPlugins") },
@@ -114,12 +65,29 @@ export const incrementDownloads = mutation({
   },
 });
 
-/** Delete a custom plugin */
+/** Delete a custom plugin and every stored version */
 export const remove = mutation({
   args: { id: v.id("customPlugins") },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("Not authenticated");
+
+    const plugin = await ctx.db.get(args.id);
+    if (!plugin) return;
+
+    const versions = await ctx.db
+      .query("pluginVersions")
+      .withIndex("by_plugin", (q) => q.eq("pluginId", args.id))
+      .collect();
+    const stored = new Set<string>();
+    for (const version of versions) {
+      stored.add(version.fileStorageId);
+      await ctx.storage.delete(version.fileStorageId);
+      await ctx.db.delete(version._id);
+    }
+    if (plugin.fileStorageId && !stored.has(plugin.fileStorageId)) {
+      await ctx.storage.delete(plugin.fileStorageId);
+    }
     await ctx.db.delete(args.id);
   },
 });

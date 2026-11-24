@@ -12,7 +12,6 @@ import {
   LandingPage,
   LoginPage,
   SettingsPage,
-  SignupPage,
 } from "./pages";
 import { PluginBuilderPage } from "./pages/PluginBuilderPage";
 import { PluginRepositoryPage } from "./pages/PluginRepositoryPage";
@@ -29,9 +28,10 @@ function App() {
               <Route path="/" element={<LandingPage />} />
               <Route element={<PublicOnlyRoute />}>
                 <Route path="/login" element={<LoginPage />} />
-                <Route path="/signup" element={<SignupPage />} />
               </Route>
             </Route>
+
+            <Route path="/signup" element={<Navigate to="/login" replace />} />
 
             <Route element={<ProtectedRoute />}>
               <Route element={<AppLayout />}>

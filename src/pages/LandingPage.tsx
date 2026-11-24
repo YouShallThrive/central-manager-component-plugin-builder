@@ -35,13 +35,10 @@ export function LandingPage() {
           {!isAuthenticated && !isLoading && (
             <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
               <Button size="lg" className="text-base h-11 px-6 bg-orange-600 hover:bg-orange-700" asChild>
-                <Link to="/signup">
-                  Get Started
+                <Link to="/login">
+                  Sign In
                   <ArrowRight className="size-4" />
                 </Link>
-              </Button>
-              <Button size="lg" variant="outline" className="text-base h-11 px-6" asChild>
-                <Link to="/login">Sign In</Link>
               </Button>
             </div>
           )}

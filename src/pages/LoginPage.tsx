@@ -1,7 +1,5 @@
-import { Link } from "react-router-dom";
 import { SignIn } from "@/components/SignIn";
 import { TestUserLoginSection } from "@/components/TestUserLoginSection";
-import { Button } from "@/components/ui/button";
 
 export function LoginPage() {
   return (
@@ -26,10 +24,8 @@ export function LoginPage() {
         <SignIn />
 
         <p className="text-center text-sm text-muted-foreground">
-          Don't have an account?{" "}
-          <Button variant="link" className="p-0 h-auto font-medium" asChild>
-            <Link to="/signup">Sign up</Link>
-          </Button>
+          Access is granted through the Central Manager. New accounts need
+          administrator approval there first.
         </p>
       </div>
     </div>

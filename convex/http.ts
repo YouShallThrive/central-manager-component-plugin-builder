@@ -1,6 +1,6 @@
 import { httpRouter } from "convex/server";
-import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { httpAction } from "./_generated/server";
 import { auth } from "./auth";
 
 const http = httpRouter();
@@ -9,26 +9,53 @@ auth.addHttpRoutes(http);
 /**
  * WordPress plugin update API (public, like wordpress.org's update API).
  *
- * GET /wp-updates/{slug}.json  → update manifest for the plugin
- * GET /wp-updates/{slug}.zip   → the plugin package
+ * GET /wp-updates/{slug}.json            → update manifest for the active version
+ * GET /wp-updates/{slug}.zip             → package of the active version
+ * GET /wp-updates/{slug}/{version}.zip   → package of one specific version
  *
- * Sites reach these through the deployment origin (env-driven CONVEX_SITE_URL):
- *   {origin}/wp-updates/...           (production)
- *   {preview origin}/wp-updates-dev/... (preview → dev DB)
+ * Sites reach these through the public origin, which nginx proxies to the
+ * Convex HTTP actions: {origin}/wp-updates/...
  */
 
-const SLUG_RE = /^\/wp-updates\/([a-z0-9-]+)\.(json|zip)$/;
+/*routing*/
+
+const CURRENT_RE = /^\/wp-updates\/([a-z0-9-]+)\.(json|zip)$/;
+const PINNED_RE = /^\/wp-updates\/([a-z0-9-]+)\/(\d[0-9A-Za-z.+-]*)\.zip$/;
+
+function parseRoute(pathname: string) {
+  const current = pathname.match(CURRENT_RE);
+  if (current) {
+    return { slug: current[1], kind: current[2] as "json" | "zip", version: undefined };
+  }
+  const pinned = pathname.match(PINNED_RE);
+  if (pinned) return { slug: pinned[1], kind: "zip" as const, version: pinned[2] };
+  return null;
+}
+
+function publicOrigin(request: Request, url: URL): string {
+  const host =
+    request.headers.get("x-forwarded-host")?.split(",")[0].trim() ||
+    request.headers.get("host") ||
+    url.host;
+  const local = /^(localhost|127\.|\[::1\])/.test(host);
+  return `${local ? "http" : "https"}://${host}`;
+}
+
+/*handler*/
 
 http.route({
   pathPrefix: "/wp-updates/",
   method: "GET",
   handler: httpAction(async (ctx, request) => {
     const url = new URL(request.url);
-    const match = url.pathname.match(SLUG_RE);
-    if (!match) return new Response("Not found", { status: 404 });
-    const [, slug, kind] = match;
+    const route = parseRoute(url.pathname);
+    if (!route) return new Response("Not found", { status: 404 });
+    const { slug, kind, version } = route;
 
-    const plugin = await ctx.runQuery(internal.wpUpdates.getPluginForUpdate, { slug });
+    const plugin = await ctx.runQuery(internal.wpUpdates.getPluginForUpdate, {
+      slug,
+      version,
+    });
     if (!plugin) return new Response("Not found", { status: 404 });
 
     if (kind === "zip") {
@@ -45,17 +72,16 @@ http.route({
       });
     }
 
-    // Manifest consumed by the plugin's Updater class.
     // ?v= busts the edge/CDN cache (Cloudflare caches zips ~4h and ignores no-cache)
-    const packageUrl = `${url.origin}/wp-updates/${slug}.zip?v=${encodeURIComponent(plugin.version)}`;
+    const packageUrl = `${publicOrigin(request, url)}/wp-updates/${slug}.zip?v=${encodeURIComponent(plugin.version)}`;
     const manifest = {
       slug,
       name: plugin.name,
       version: plugin.version,
       author: plugin.author,
-      requires: "6.4",
-      tested: "6.8",
-      requires_php: "8.1",
+      requires: plugin.requires,
+      tested: plugin.tested,
+      requires_php: plugin.requiresPhp,
       last_updated: new Date(plugin.updatedAt).toISOString(),
       download_url: packageUrl,
       sections: {

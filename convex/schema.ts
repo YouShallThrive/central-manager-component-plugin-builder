@@ -60,10 +60,28 @@ const schema = defineSchema({
     tags: v.optional(v.array(v.string())),
     gitRepo: v.optional(v.string()),
     installedOnSites: v.optional(v.array(v.string())),
+    activeVersionId: v.optional(v.id("pluginVersions")),
   })
     .index("by_slug", ["slug"])
     .index("by_category", ["category"])
     .index("by_is_starter", ["isStarter"]),
+
+  // Every uploaded version of a plugin; the active one is served to sites
+  pluginVersions: defineTable({
+    pluginId: v.id("customPlugins"),
+    version: v.string(),
+    fileStorageId: v.id("_storage"),
+    fileSize: v.number(),
+    sha256: v.optional(v.string()),
+    changelog: v.optional(v.string()),
+    requires: v.optional(v.string()),
+    tested: v.optional(v.string()),
+    requiresPhp: v.optional(v.string()),
+    uploadedBy: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_plugin", ["pluginId"])
+    .index("by_plugin_and_version", ["pluginId", "version"]),
 
   // App settings
   settings: defineTable({

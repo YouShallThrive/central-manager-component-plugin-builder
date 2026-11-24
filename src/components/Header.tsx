@@ -9,7 +9,7 @@ export function Header() {
   const location = useLocation();
 
   const isAuthPage =
-    location.pathname === "/login" || location.pathname === "/signup";
+    location.pathname === "/login";
 
   return (
     <header className="sticky top-0 z-50 border-b bg-background/80 backdrop-blur-md">
@@ -38,11 +38,8 @@ export function Header() {
             ) : (
               !isAuthPage && (
                 <>
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link to="/login">Sign In</Link>
-                  </Button>
                   <Button size="sm" asChild>
-                    <Link to="/signup">Get Started</Link>
+                    <Link to="/login">Sign In</Link>
                   </Button>
                 </>
               )
